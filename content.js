@@ -20,18 +20,19 @@ function extractNumber(priceText) {
 
 function detectWeight(card) {
   const text = card.innerText.toLowerCase();
-  const matches = text.match(/(\d+(?:\.\d+)?)\s*(?:g|gm)/g);
-  if (!matches) return null;
-  const equalMatch = text.match(/=\s*(\d+(?:\.\d+)?)\s*(?:g|gm)/);
-  if (equalMatch) return parseFloat(equalMatch[1]);
-  let total = 0;
-  matches.forEach((m) => {
-    const val = parseFloat(m);
-    if (!isNaN(val)) total += val;
-  });
-  if (total > 50) total = Math.max(...matches.map((m) => parseFloat(m)));
-  return total;
+  // Find patterns like “5g”, “10 gm”, “=10g”
+  const matches = [...text.matchAll(/(?:^|\s|[-=])(\d+(?:\.\d+)?)\s*(?:g|gm|gram)/g)];
+  if (matches.length === 0) return null;
+  // Parse only plausible weights (≤ 200 g to ignore purity like 999)
+  const grams = matches
+    .map(m => parseFloat(m[1]))
+    .filter(w => !isNaN(w) && w <= 200);
+  if (grams.length === 0) return null;
+  // Handle combos like “5 g + 5 g”
+  const sum = grams.reduce((a, b) => a + b, 0);
+  return sum;
 }
+
 
 //--------------------------------------
 // 🧮 Inject Blinkdeal + Market Compare
