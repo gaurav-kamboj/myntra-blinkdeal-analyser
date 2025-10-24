@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Myntra Blinkdeal Analyser",
+  "version": "1.0",
+  "description": "Shows Blinkdeal 8% discount price & price/gram, and allows sorting by lowest ₹/gm.",
+  "content_scripts": [
+    {
+      "matches": ["https://www.myntra.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "128": "icon128.png"
+  },
+  "permissions": ["activeTab"]
+}
