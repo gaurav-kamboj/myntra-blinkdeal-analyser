@@ -1,10 +1,12 @@
 //--------------------------------------
-// 🪙 Blinkdeal + ₹/g + Market Comparison (Persistent)
+// 🪙 Blinkdeal + ₹/g + Market Comparison (Purity-Aware + Market Rate Display)
 //--------------------------------------
 
 let MARKET_RATE = null;
 
-// Helper to format INR
+//--------------------------------------
+// 💰 Helpers
+//--------------------------------------
 function formatPrice(num) {
   return "₹" + num.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
@@ -18,46 +20,100 @@ function extractNumber(priceText) {
   return match ? parseFloat(match[0]) : null;
 }
 
+//--------------------------------------
+// ⚖️ Detect weight (ignores purity numbers like 999, 916)
+//--------------------------------------
 function detectWeight(card) {
   const text = card.innerText.toLowerCase();
-  // Find patterns like “5g”, “10 gm”, “=10g”
-  const matches = [...text.matchAll(/(?:^|\s|[-=])(\d+(?:\.\d+)?)\s*(?:g|gm|gram)/g)];
+  const matches = [
+    ...text.matchAll(/(?:^|\s|[-=])(\d+(?:\.\d+)?)\s*(?:g|gm|gram)/g),
+  ];
   if (matches.length === 0) return null;
-  // Parse only plausible weights (≤ 200 g to ignore purity like 999)
+
   const grams = matches
-    .map(m => parseFloat(m[1]))
-    .filter(w => !isNaN(w) && w <= 200);
+    .map((m) => parseFloat(m[1]))
+    .filter((w) => !isNaN(w) && w <= 200);
   if (grams.length === 0) return null;
-  // Handle combos like “5 g + 5 g”
-  const sum = grams.reduce((a, b) => a + b, 0);
-  return sum;
+
+  return grams.reduce((a, b) => a + b, 0);
 }
 
+//--------------------------------------
+// 🧮 Detect purity and adjust market rate
+//--------------------------------------
+function getAdjustedMarketRate(card) {
+  const text = card.innerText.toLowerCase();
+  if (
+    text.includes("22kt") ||
+    text.includes("22 karat") ||
+    text.includes("22k")
+  )
+    return MARKET_RATE * 0.916;
+  if (
+    text.includes("23kt") ||
+    text.includes("23 karat") ||
+    text.includes("23k")
+  )
+    return MARKET_RATE * 0.958;
+  return MARKET_RATE; // default 24KT
+}
+
+function getPurityLabel(card) {
+  const text = card.innerText.toLowerCase();
+  if (
+    text.includes("22kt") ||
+    text.includes("22 karat") ||
+    text.includes("22k")
+  )
+    return "22KT";
+  if (
+    text.includes("23kt") ||
+    text.includes("23 karat") ||
+    text.includes("23k")
+  )
+    return "23KT";
+  return "24KT";
+}
+
+function getPurityColor(purity) {
+  switch (purity) {
+    case "22KT":
+      return "#d4a017"; // gold/yellow
+    case "23KT":
+      return "#ff8800"; // amber
+    case "24KT":
+    default:
+      return "#007d44"; // green
+  }
+}
 
 //--------------------------------------
-// 🧮 Inject Blinkdeal + Market Compare
+// 🧾 Inject Blinkdeal + Market Compare
 //--------------------------------------
 function injectDiscountLabels() {
   const productCards = document.querySelectorAll(
     "li, .product-base, .product, article",
   );
+
   productCards.forEach((card) => {
     if (card.dataset.blinkdealInjected) return;
 
     const titleText = card.innerText.toLowerCase();
 
-    // 🟥 Exclude MMTC items
+    // 🟥 Skip MMTC items
     if (titleText.includes("mmtc")) {
       const redNotice = document.createElement("div");
       redNotice.textContent = "BLINKDEAL not applicable";
-      redNotice.style.color = "#cc0000";
-      redNotice.style.fontWeight = "600";
-      redNotice.style.fontSize = "13px";
-      redNotice.style.marginTop = "6px";
-      redNotice.style.background = "#ffeaea";
-      redNotice.style.borderRadius = "6px";
-      redNotice.style.display = "inline-block";
-      redNotice.style.padding = "4px 8px";
+      Object.assign(redNotice.style, {
+        color: "#cc0000",
+        fontWeight: "600",
+        fontSize: "13px",
+        marginTop: "6px",
+        background: "#ffeaea",
+        borderRadius: "6px",
+        display: "inline-block",
+        padding: "4px 8px",
+      });
       const priceEl = card.querySelector("p, span, div");
       if (priceEl) priceEl.insertAdjacentElement("afterend", redNotice);
       card.dataset.perGram = "Infinity";
@@ -65,7 +121,7 @@ function injectDiscountLabels() {
       return;
     }
 
-    // Find visible price
+    // 🔍 Find visible price
     const priceEl = Array.from(card.querySelectorAll("p, span, div")).find(
       (el) =>
         /^Rs\.\s?\d+/.test(el.innerText.trim()) &&
@@ -79,18 +135,23 @@ function injectDiscountLabels() {
     const weight = detectWeight(card) || 1;
     const discounted = calculateDiscountedPrice(price);
     const perGram = discounted / weight;
+    const purityLabel = getPurityLabel(card);
+    const purityColor = getPurityColor(purityLabel);
 
-    // Blinkdeal info box
+    // 💡 Info box
     const box = document.createElement("div");
-    box.className = "blinkdeal-box";
-    box.style.background = "#eafff3";
-    box.style.borderRadius = "8px";
-    box.style.padding = "6px 8px";
-    box.style.marginTop = "6px";
-    box.style.display = "inline-block";
-    box.style.lineHeight = "18px";
-    box.style.fontSize = "13px";
-    box.style.fontFamily = "sans-serif";
+    Object.assign(box.style, {
+      background: "#eafff3",
+      borderRadius: "8px",
+      padding: "6px 8px",
+      marginTop: "6px",
+      display: "inline-block",
+      lineHeight: "18px",
+      fontSize: "13px",
+      fontFamily: "sans-serif",
+    });
+
+    // 📊 Core info
     box.innerHTML = `
       <div style="color:#007d44; font-weight:600;">
         After Blinkdeal: ${formatPrice(discounted)}
@@ -98,36 +159,38 @@ function injectDiscountLabels() {
       <div style="color:#555; font-size:12px;">
         ≈ ${formatPrice(perGram)} per gram (${weight} g)
       </div>
+      <div style="margin-top:2px; font-size:12px;">
+        <span style="color:${purityColor}; font-weight:600;">${purityLabel}</span> •
+        Market rate: ${MARKET_RATE ? formatPrice(getAdjustedMarketRate(card)) + "/g" : "—"}
+      </div>
     `;
 
-    // 🔍 Compare with market rate if available
+    // 🧮 Compare with market rate (adjusted by purity)
     if (MARKET_RATE) {
-      const diffPct = ((perGram - MARKET_RATE) / MARKET_RATE) * 100; // +ve = costlier than market
+      const adjustedRate = getAdjustedMarketRate(card);
+      const diffPct = ((perGram - adjustedRate) / adjustedRate) * 100;
       const status = document.createElement("div");
-      status.style.marginTop = "4px";
-      status.style.fontSize = "12px";
-      status.style.fontWeight = "600";
+      Object.assign(status.style, {
+        marginTop: "4px",
+        fontSize: "12px",
+        fontWeight: "600",
+      });
 
       if (diffPct <= -3) {
-        // ≥3% cheaper
         status.textContent = "🟩 Steal deal – Below sell rate";
         status.style.color = "#007d44"; // green
       } else if (diffPct < 0) {
-        // between 0% and -3%
-        status.textContent = "🟨 Fair – Below market but above sell";
-        status.style.color = "#d4a017"; // yellow/gold
+        status.textContent = "🟨 Fair buy – Near market rate";
+        status.style.color = "#d4a017"; // gold
       } else if (diffPct > 0 && diffPct < 3) {
-        // 0.01% to 2.99% above market
-        status.textContent = "🟧 Slightly above market rate";
-        status.style.color = "#ff7e00"; // amber/orange
+        status.textContent = "🟧 Premium – Above market";
+        status.style.color = "#e56b00"; // amber
       } else {
-        // ≥3% costlier
-        status.textContent = "🟥 Overpriced – Do not buy";
+        status.textContent = "🟥 Overpriced – Avoid";
         status.style.color = "#cc0000"; // red
       }
 
-      // Optionally show % difference
-      status.title = `${diffPct.toFixed(2)}% vs market`;
+      status.title = `${diffPct.toFixed(2)}% vs adjusted ${purityLabel} market rate`;
       box.appendChild(status);
     }
 
@@ -137,17 +200,22 @@ function injectDiscountLabels() {
   });
 }
 
+//--------------------------------------
+// 🔁 Continuous refresh
+//--------------------------------------
 function refreshData() {
   injectDiscountLabels();
-  setInterval(injectDiscountLabels, 2500);
+  if (!window.blinkdealInterval) {
+    window.blinkdealInterval = setInterval(injectDiscountLabels, 2500);
+  }
 }
 
 //--------------------------------------
-// 💬 Prompt + Persist Market Rate
+// 💬 Market rate input (persistent)
 //--------------------------------------
 function promptMarketRate() {
   const rate = prompt(
-    "Enter current gold market rate per gram (₹):",
+    "Enter current 24KT gold market rate per gram (₹):",
     MARKET_RATE || "12500",
   );
   if (rate && !isNaN(rate)) {
@@ -168,18 +236,20 @@ function createButtons() {
   btnRate.innerText = "Set Market Rate";
 
   [btnSort, btnRate].forEach((b) => {
-    b.style.position = "fixed";
-    b.style.right = "24px";
-    b.style.background = "#007d44";
-    b.style.color = "#fff";
-    b.style.fontSize = "13px";
-    b.style.fontWeight = "600";
-    b.style.padding = "10px 16px";
-    b.style.border = "none";
-    b.style.borderRadius = "8px";
-    b.style.cursor = "pointer";
-    b.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
-    b.style.zIndex = "9999";
+    Object.assign(b.style, {
+      position: "fixed",
+      right: "24px",
+      background: "#007d44",
+      color: "#fff",
+      fontSize: "13px",
+      fontWeight: "600",
+      padding: "10px 16px",
+      border: "none",
+      borderRadius: "8px",
+      cursor: "pointer",
+      boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+      zIndex: "9999",
+    });
   });
 
   btnSort.style.bottom = "24px";
@@ -193,7 +263,7 @@ function createButtons() {
 }
 
 //--------------------------------------
-// 🔽 Sorting by per gram
+// 🔽 Sort by ₹/gm
 //--------------------------------------
 function sortByPerGram() {
   const cards = Array.from(
@@ -221,7 +291,6 @@ function sortByPerGram() {
 // 🚀 Init
 //--------------------------------------
 window.addEventListener("load", () => {
-  // Load saved market rate if available
   const saved = localStorage.getItem("myntra_market_rate");
   if (saved && !isNaN(saved)) {
     MARKET_RATE = parseFloat(saved);
