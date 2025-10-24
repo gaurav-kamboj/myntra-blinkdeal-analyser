@@ -1,6 +1,14 @@
 # myntra-blinkdeal-analyser
 Chrome extension that analyzes Myntra’s gold coin listings — applies Blinkdeal 8% discount, calculates effective ₹/gram rate, compares with live market gold rate, and flags best-value deals.
 
+
+Disclaimer:<br>
+- This extension is an independent open-source project created for educational and personal use.
+- It is not affiliated with, endorsed by, or connected to Myntra, Blinkdeal, or any of their parent entities.
+- All product names, logos, and trademarks are the property of their respective owners.
+- The extension simply enhances publicly available web data on Myntra for informational purposes only.
+- It does not collect or transmit any user data.
+
 ### ✨ Features
 
 | Feature                              | Description                                                                                                |
