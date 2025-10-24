@@ -56,7 +56,7 @@ Hover over a label to see the exact percentage difference (e.g. −2.4 % vs mark
   └── sample-2.png  </pre>
 
 
-### Visit [Myntra Gold Coin Page](https://www.myntra.com/gold-coin-24k)
+### Visit [Myntra Gold Coin Page](https://www.myntra.com/gold-coin-24)
 
 
 ### 🚀 Usage
