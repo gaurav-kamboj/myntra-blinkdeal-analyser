@@ -1,88 +1,84 @@
-# myntra-blinkdeal-analyser
-Chrome extension that analyzes Myntra’s gold coin listings — applies Blinkdeal 8% discount, calculates effective ₹/gram rate, compares with live market gold rate, and flags best-value deals.
+# Myntra Blinkdeal Analyser
 
+A Chrome extension for comparing Myntra gold-coin listings. It calculates a configurable Blinkdeal price, derives an effective ₹/g value when a product weight is known, and compares it with a market rate you provide.
 
-Disclaimer:<br>
-- This extension is an independent open-source project created for educational and personal use.
-- It is not affiliated with, endorsed by, or connected to Myntra, Blinkdeal, or any of their parent entities.
-- All product names, logos, and trademarks are the property of their respective owners.
-- The extension simply enhances publicly available web data on Myntra for informational purposes only.
-- It does not collect or transmit any user data.
+> This independent open-source project is for educational and personal use. It is not affiliated with, endorsed by, or connected to Myntra, Blinkdeal, or their parent entities. Product names, logos, and trademarks belong to their respective owners. The extension does not collect or send user data to a third party.
 
-### ✨ Features
+## Features
 
-| Feature                              | Description                                                                                                |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| 💸 **Blinkdeal Discount Calculator** | Automatically applies 8% Blinkdeal discount to Myntra gold coin prices.                                    |
-| ⚖️ **Per-Gram Value Calculation**    | Detects product weight (2g, 5g, 10g, or combo) and computes price per gram.                                |
-| 📊 **Market Rate Comparison**        | Compares derived ₹/gm with your input market rate and classifies results into four color-coded deal zones. |
-| 🔄 **Persistent Settings**           | Market rate is stored in localStorage and persists across refreshes.                                       |
-| 🟥 **MMTC Exclusion**                | Products containing “MMTC” or “MMTC-PAMP” are flagged as “BLINKDEAL not applicable”.                       |
-| 🧭 **Smart Sorting**                 | Sort all products by lowest effective ₹/gram rate with one click.                                          |
-| ⚙️ **Auto-Refresh Support**          | Works even with Myntra’s infinite-scroll product loading.                                                  |
+| Feature | What it does |
+| --- | --- |
+| Configurable Blinkdeal discount | Choose 6%, 8% (default), or enter a custom discount. Every Blinkdeal price and ₹/g value recalculates immediately. |
+| ₹/g calculation | Uses the stated product weight to show the discounted effective price per gram. When no reliable weight is available, it explicitly shows **Weight unavailable · ₹/g pending** rather than assuming 1 g. |
+| Purity-aware comparison | Detects 22KT, 23KT, and 24KT products and adjusts the entered 24KT market rate for the purity before comparing. |
+| Deal classification | Labels comparable products as Steal deal, Fair buy, Premium, or Overpriced, with the exact percentage above or below the market rate. |
+| Best ₹/g badge | Highlights the lowest confirmed ₹/g product for each purity. |
+| Gold Deal Tools dock | Provides market-rate entry, discount selection, ₹/g sorting, purity filters, loading controls, and a filter-panel toggle in one compact dock. |
+| Purity filters and sorting | Filter to All, 24KT, or 22KT products, and sort the visible listing by the lowest known ₹/g. |
+| Load all products | Fetches Myntra’s paginated listing pages into one grid so comparison and sorting can operate across the full result set. Original pagination remains available if a page fails to load. |
+| PDP support | Adds the same Blinkdeal analysis above **Add to Bag** on gold-coin product-detail pages, using product details and title fallbacks for purity and weight. |
+| Broad gold-coin route support | Works on standard and brand/weight-specific listing paths such as `/gold-coin`, `/kalyan-gold-coin`, `/malabar-gold-coin`, and `/gold-coin-1g`. |
+| Listing cleanup | Can hide Myntra’s built-in filter panels to fit more products, hides the Izooto floating bell, and excludes PARSHWA PADMAVATI GOLD cards. |
+| Persistent settings | Saves the market rate, Blinkdeal discount, and filter-panel preference in `localStorage`. |
+| MMTC notice | Marks MMTC/MMTC-PAMP products as not applicable for Blinkdeal analysis. |
 
-<br>
+## How the comparison works
 
-### 🧮 Comparison Logic (Final Version)
+1. Set the current 24KT market rate per gram in **Gold Deal Tools**.
+2. Select the Blinkdeal discount (6%, 8%, or a custom value).
+3. For a product with a confirmed weight, the extension calculates:
 
-| Difference vs Market (Derived – Market) | Label                                  | Emoji | Color  |
-| --------------------------------------- | -------------------------------------- | ----- | ------ |
-| ≤ −3 %                                  | **Steal deal – Below sell rate**       | 🟩    | Green  |
-| Between −3 % and 0 %                    | **Fair – Below market but above sell** | 🟨    | Yellow |
-| Between 0.01 % and +2.99 %              | **Slightly above market – Amber zone** | 🟧    | Orange |
-| ≥ +3 %                                  | **Overpriced – Do not buy**            | 🟥    | Red    |
+   `Blinkdeal price = listing price × (1 − discount%)`
 
-Hover over a label to see the exact percentage difference (e.g. −2.4 % vs market).
+   `Effective ₹/g = Blinkdeal price ÷ weight in grams`
 
-<br>
+4. The effective ₹/g is compared with the purity-adjusted market rate:
 
-### 🧰 Installation (Developer Mode)
+| Difference vs. market | Label |
+| --- | --- |
+| ≤ −3% | Steal deal |
+| > −3% and < 0% | Fair buy |
+| > 0% and < 3% | Premium |
+| ≥ 3% | Overpriced |
 
-- Clone or download this repository: git clone https://github.com/gaurav-kamboj/myntra-blinkdeal-analyser.git
-- Open Chrome → chrome://extensions
-- Enable Developer Mode
-- Click Load unpacked
-- Select the folder containing:
-<pre> 📂 Project Structure 
-  myntra-blinkdeal-analyzer/ 
-  ├── manifest.json # Chrome extension manifest (v3) 
-  ├── content.js # Core logic for Blinkdeal + market comparison 
-  ├── LICENSE # MIT License file 
-  ├── README.md # Documentation
-  └── assets/ 
-  ├── icon128.png # Extension icon 
-  └── screenshots/ 
-  ├── sample-1.png 
-  └── sample-2.png  </pre>
+Products without a reliable stated weight are never assigned an assumed weight or used for the Best ₹/g badge.
 
+## Install in Chrome (Developer Mode)
 
-### Visit [Myntra Gold Coin Page](https://www.myntra.com/gold-coin-24)
+1. Clone the repository:
 
+   ```bash
+   git clone https://github.com/gaurav-kamboj/myntra-blinkdeal-analyser.git
+   ```
 
-### 🚀 Usage
+2. Open `chrome://extensions`.
+3. Enable **Developer mode**.
+4. Select **Load unpacked** and choose the cloned repository folder.
+5. Reload the extension after pulling new changes.
 
-Click “Set Market Rate” → enter current gold rate per gram (e.g., ₹12,500).
+## Use it
 
-The extension instantly labels each product:
+1. Open a Myntra gold-coin listing or product page.
+2. In **Gold Deal Tools**, choose **Set market rate** and enter the current 24KT ₹/g rate.
+3. Select the discount rate you expect Blinkdeal to apply.
+4. Optionally choose a purity filter, hide Myntra’s filters, or select **Sort lowest ₹/g**.
+5. On a paginated listing, choose **Load all _N_ products** to bring every page into the current grid before sorting.
 
-- 🟩 Steal deal – Below sell rate
-- 🟨 Fair – Below market but above sell
-- 🟧 Slightly above market – Amber zone
-- 🟥 Overpriced – Do not buy
+## Project structure
 
-Click “Sort by ₹/gm ↑” to reorder products by cheapest effective per-gram rate. <br>
-Market rate is saved automatically — you don’t need to re-enter it each time.
+```text
+myntra-blinkdeal-analyser/
+├── manifest.json       # Chrome Extension Manifest V3
+├── content.js          # Listing, PDP, comparison, and dock behavior
+├── test-content.js     # Lightweight JXA regression tests
+├── icon128.png         # Extension icon
+├── README.md
+└── LICENSE
+```
 
-### ⚙️ Tech Stack
+## Tech stack
 
-- JavaScript (Vanilla)
-- Chrome Extensions API (Manifest v3)
-- LocalStorage
-- DOM Manipulation (No frameworks)
-
-### 🧭 Future Enhancements
-
-- 🔗 Auto-fetch live gold rate via AllIndiaBullion API
-- 💬 Floating market-rate display badge on the page
-- 📊 Tooltip showing exact % difference per product
-- 🌙 Dark mode compatibility
+- Vanilla JavaScript
+- Chrome Extensions Manifest V3
+- Browser DOM APIs and same-origin Myntra page fetches
+- `localStorage`
