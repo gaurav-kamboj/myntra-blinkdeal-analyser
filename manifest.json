@@ -13,8 +13,13 @@
   "background": {
     "service_worker": "background.js"
   },
+  "action": {
+    "default_popup": "popup.html"
+  },
   "icons": {
     "128": "icon128.png"
   },
-  "permissions": ["activeTab"]
+  "permissions": ["activeTab", "storage"],
+  "optional_permissions": ["alarms"],
+  "optional_host_permissions": ["https://www.myntra.com/*"]
 }
