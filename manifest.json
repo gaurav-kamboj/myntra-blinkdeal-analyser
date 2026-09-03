@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Myntra Blinkdeal Analyser",
+  "version": "1.0",
+  "description": "Calculates Blinkdeal prices and ₹/g, compares purity-adjusted rates, flags best deals, filters/sorts listings, and loads all pages.",
+  "content_scripts": [
+    {
+      "matches": ["https://www.myntra.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "128": "icon128.png"
+  },
+  "permissions": ["activeTab"]
+}
