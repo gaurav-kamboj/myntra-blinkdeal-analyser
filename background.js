@@ -175,9 +175,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === COUPON_MONITOR_ALARM) checkBlinkdealCoupon();
-});
+if (chrome.alarms?.onAlarm) {
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === COUPON_MONITOR_ALARM) checkBlinkdealCoupon();
+  });
+}
 
 chrome.runtime.onStartup.addListener(restoreCouponMonitor);
 chrome.runtime.onInstalled.addListener(restoreCouponMonitor);

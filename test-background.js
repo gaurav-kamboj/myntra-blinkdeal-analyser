@@ -48,6 +48,9 @@ if (source.includes("chrome.cookies")) {
 if (!source.includes("hasCouponMonitorPermissions")) {
   throw new Error("worker must guard optional monitor permissions before scheduling");
 }
+if (!source.includes("if (chrome.alarms?.onAlarm)")) {
+  throw new Error("worker must load before optional alarm access is granted");
+}
 
 const popupPath = "popup.js";
 if (!fileManager.fileExistsAtPath(popupPath)) {
