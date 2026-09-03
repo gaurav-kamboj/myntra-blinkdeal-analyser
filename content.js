@@ -7,6 +7,9 @@ let PURITY_FILTER = "all";
 let BLINKDEAL_DISCOUNT_PERCENT = 8;
 let FILTER_PANEL_HIDDEN = true;
 let LOAD_ALL_PRODUCTS_RUNNING = false;
+let MARKET_RATE_SOURCE = "malabar";
+let MARKET_RATE_UPDATED_AT = null;
+let MARKET_RATE_LIVE_STATUS = "idle";
 
 //--------------------------------------
 // 💰 Helpers
@@ -699,6 +702,126 @@ function parseMarketRate(value) {
   return Number.isFinite(rate) && rate > 0 ? rate : null;
 }
 
+function getMalabarLiveRate(payload) {
+  const item = Array.isArray(payload?.items)
+    ? payload.items.find((candidate) => candidate?.id === "malabar")
+    : null;
+  const rate = parseMarketRate(item?.today);
+  if (rate === null) return null;
+
+  return {
+    rate,
+    updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : null,
+  };
+}
+
+function normalizeMarketRateSource(value) {
+  return value === "manual" ? "manual" : "malabar";
+}
+
+function getMarketRateStatus(source, liveStatus, hasRate) {
+  if (source === "manual") return "Manual rate";
+  if (liveStatus === "loading") return "Refreshing Malabar rate";
+  if (liveStatus === "unavailable") {
+    return hasRate ? "Cached Malabar rate" : "Live rate unavailable";
+  }
+  return hasRate ? "Live Malabar 24K" : "Live rate pending";
+}
+
+function requestMalabarMarketRate() {
+  return new Promise((resolve, reject) => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+      reject(new Error("Extension background worker is unavailable"));
+      return;
+    }
+
+    chrome.runtime.sendMessage({ type: "blinkdeal:get-malabar-rate" }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response?.ok) {
+        reject(new Error(response?.error || "Unable to fetch the Malabar rate"));
+        return;
+      }
+      resolve(response.payload);
+    });
+  });
+}
+
+function getCachedMalabarLiveRate() {
+  try {
+    const cached = JSON.parse(
+      localStorage.getItem("myntra_malabar_market_rate_cache") || "null",
+    );
+    const rate = parseMarketRate(cached?.rate);
+    return rate === null
+      ? null
+      : {
+          rate,
+          updatedAt: typeof cached.updatedAt === "string" ? cached.updatedAt : null,
+        };
+  } catch {
+    return null;
+  }
+}
+
+function saveMarketRate(rate, source, updatedAt = null) {
+  MARKET_RATE = rate;
+  MARKET_RATE_SOURCE = normalizeMarketRateSource(source);
+  MARKET_RATE_UPDATED_AT = updatedAt;
+  localStorage.setItem("myntra_market_rate", String(rate));
+  localStorage.setItem("myntra_market_rate_source", MARKET_RATE_SOURCE);
+}
+
+function applyCachedMalabarRate() {
+  const cached = getCachedMalabarLiveRate();
+  if (!cached) return false;
+
+  MARKET_RATE = cached.rate;
+  MARKET_RATE_SOURCE = "malabar";
+  MARKET_RATE_UPDATED_AT = cached.updatedAt;
+  return true;
+}
+
+async function refreshMalabarMarketRate(forceLiveRate = false) {
+  if (MARKET_RATE_SOURCE === "manual" && !forceLiveRate) return false;
+
+  MARKET_RATE_LIVE_STATUS = "loading";
+  updateToolsDock();
+  updateLiveRateControl();
+
+  try {
+    const liveRate = getMalabarLiveRate(await requestMalabarMarketRate());
+    if (!liveRate) throw new Error("Malabar 24K rate is unavailable");
+
+    saveMarketRate(liveRate.rate, "malabar", liveRate.updatedAt);
+    localStorage.setItem(
+      "myntra_malabar_market_rate_cache",
+      JSON.stringify(liveRate),
+    );
+    MARKET_RATE_LIVE_STATUS = "live";
+    updateToolsDock();
+    updateLiveRateControl();
+    refreshData();
+    return true;
+  } catch (error) {
+    MARKET_RATE_LIVE_STATUS = "unavailable";
+    if (MARKET_RATE_SOURCE === "malabar" && !MARKET_RATE) {
+      applyCachedMalabarRate();
+    }
+    updateToolsDock();
+    updateLiveRateControl();
+    return false;
+  }
+}
+
+function useLiveMalabarRate() {
+  MARKET_RATE_SOURCE = "malabar";
+  localStorage.setItem("myntra_market_rate_source", "malabar");
+  return refreshMalabarMarketRate(true);
+}
+
 function promptMarketRate() {
   if (document.querySelector("#blinkdeal-rate-modal")) return;
 
@@ -867,9 +990,10 @@ function promptMarketRate() {
       return;
     }
 
-    MARKET_RATE = rate;
-    localStorage.setItem("myntra_market_rate", MARKET_RATE);
+    saveMarketRate(rate, "manual");
+    MARKET_RATE_LIVE_STATUS = "manual";
     updateToolsDock();
+    updateLiveRateControl();
     refreshData();
     closeModal();
   });
@@ -948,6 +1072,36 @@ function updateToolsDock() {
     ? `Market rate: ${formatPrice(MARKET_RATE)}/g`
     : "Market rate not set";
   rateLabel.style.color = MARKET_RATE ? "#bcefd3" : "#f6d98e";
+
+  const statusLabel = document.querySelector("#blinkdeal-market-rate-status");
+  if (!statusLabel) return;
+
+  statusLabel.textContent = getMarketRateStatus(
+    MARKET_RATE_SOURCE,
+    MARKET_RATE_LIVE_STATUS,
+    Boolean(MARKET_RATE),
+  );
+  statusLabel.style.color = MARKET_RATE_SOURCE === "manual" || MARKET_RATE_LIVE_STATUS === "unavailable"
+    ? "#f6d98e"
+    : "#bcefd3";
+}
+
+function updateLiveRateControl() {
+  const control = document.querySelector("#blinkdeal-live-malabar-rate");
+  if (!control) return;
+
+  const loading = MARKET_RATE_LIVE_STATUS === "loading";
+  const label = loading
+    ? "Refreshing Malabar rate"
+    : MARKET_RATE_SOURCE === "manual"
+      ? "Use live Malabar rate"
+      : "Refresh Malabar rate";
+  control.textContent = loading ? "…" : "↻";
+  control.setAttribute("aria-label", label);
+  control.title = label;
+  control.disabled = loading;
+  control.style.opacity = loading ? "0.72" : "1";
+  control.style.cursor = loading ? "default" : "pointer";
 }
 
 function updateDiscountDock() {
@@ -974,6 +1128,7 @@ function updateDiscountDock() {
 function createButtons() {
   if (document.querySelector("#blinkdeal-tools")) {
     updateToolsDock();
+    updateLiveRateControl();
     updateDiscountDock();
     updatePurityFilterDock();
     updateFilterPanelControl();
@@ -989,7 +1144,7 @@ function createButtons() {
     right: "24px",
     bottom: "24px",
     boxSizing: "border-box",
-    width: "190px",
+    width: "188px",
     padding: "12px",
     background: "#063d2a",
     color: "#fff",
@@ -1000,6 +1155,14 @@ function createButtons() {
     zIndex: "9999",
   });
 
+  const header = document.createElement("div");
+  Object.assign(header.style, {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "8px",
+  });
+
   const title = document.createElement("div");
   title.textContent = "Gold Deal Tools";
   Object.assign(title.style, {
@@ -1007,6 +1170,45 @@ function createButtons() {
     fontWeight: "700",
     letterSpacing: "0.1px",
   });
+  header.appendChild(title);
+
+  const createIconControl = (icon, label, onClick, id) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = id;
+    button.textContent = icon;
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.addEventListener("click", onClick);
+    Object.assign(button.style, {
+      display: "grid",
+      placeItems: "center",
+      width: "28px",
+      height: "28px",
+      padding: "0",
+      background: "transparent",
+      color: "#d9f7e7",
+      border: "1px solid #77c7a0",
+      borderRadius: "7px",
+      cursor: "pointer",
+      fontSize: "17px",
+      lineHeight: "1",
+    });
+    return button;
+  };
+
+  const rateActions = document.createElement("div");
+  Object.assign(rateActions.style, {
+    display: "flex",
+    gap: "5px",
+  });
+  rateActions.append(
+    createIconControl("✎", "Set market rate", promptMarketRate, "blinkdeal-edit-market-rate"),
+    createIconControl("↻", "Refresh Malabar rate", useLiveMalabarRate, "blinkdeal-live-malabar-rate"),
+  );
+  header.appendChild(rateActions);
+
+  const rateInfo = document.createElement("div");
 
   const rateLabel = document.createElement("div");
   rateLabel.id = "blinkdeal-market-rate";
@@ -1015,6 +1217,16 @@ function createButtons() {
     fontSize: "12px",
     lineHeight: "16px",
   });
+
+  const rateStatusLabel = document.createElement("div");
+  rateStatusLabel.id = "blinkdeal-market-rate-status";
+  rateStatusLabel.setAttribute("aria-live", "polite");
+  Object.assign(rateStatusLabel.style, {
+    marginTop: "1px",
+    fontSize: "10px",
+    lineHeight: "14px",
+  });
+  rateInfo.append(rateLabel, rateStatusLabel);
 
   const discountLabel = document.createElement("div");
   discountLabel.textContent = "Blinkdeal discount";
@@ -1124,9 +1336,7 @@ function createButtons() {
 
   const actions = document.createElement("div");
   Object.assign(actions.style, {
-    display: "grid",
-    gap: "7px",
-    marginTop: "10px",
+    marginTop: "9px",
     minWidth: "0",
   });
 
@@ -1137,13 +1347,13 @@ function createButtons() {
     button.addEventListener("click", onClick);
     Object.assign(button.style, {
       ...getFullWidthControlStyles(),
-      padding: "8px 10px",
+      padding: "7px 8px",
       background: primary ? "#ffd45a" : "transparent",
       color: primary ? "#123d2c" : "#fff",
       border: primary ? "1px solid #ffd45a" : "1px solid #77c7a0",
       borderRadius: "7px",
       cursor: "pointer",
-      fontSize: "12px",
+      fontSize: "11px",
       fontWeight: "700",
       textAlign: "left",
     });
@@ -1157,23 +1367,43 @@ function createButtons() {
     return button;
   };
 
-  actions.append(
-    createAction("Set market rate", promptMarketRate, true),
-    createAction("Sort lowest ₹/g", sortByPerGram),
-  );
+  actions.append(createAction("Sort ₹/g", sortByPerGram));
 
+  const moreTools = document.createElement("details");
+  moreTools.id = "blinkdeal-more-tools";
+  Object.assign(moreTools.style, {
+    marginTop: "7px",
+  });
+
+  const moreToolsSummary = document.createElement("summary");
+  moreToolsSummary.textContent = "More tools";
+  Object.assign(moreToolsSummary.style, {
+    color: "#bcefd3",
+    cursor: "pointer",
+    fontSize: "11px",
+    fontWeight: "700",
+    userSelect: "none",
+  });
+
+  const moreToolsContent = document.createElement("div");
+  Object.assign(moreToolsContent.style, {
+    display: "grid",
+    gap: "7px",
+    marginTop: "7px",
+  });
+
+  const manualRate = createAction("Set market rate", promptMarketRate, true);
   const loadAllProducts = createAction("Load all pages", loadAllListingProducts);
   loadAllProducts.id = "blinkdeal-load-all-products";
-  actions.append(loadAllProducts);
 
   const filterPanelToggle = createAction("Show filters", toggleFilterPanel);
   filterPanelToggle.id = "blinkdeal-filter-panel-toggle";
-  actions.append(filterPanelToggle);
+  moreToolsContent.append(manualRate, loadAllProducts, filterPanelToggle);
 
   const filterLabel = document.createElement("div");
   filterLabel.textContent = "Show purity";
   Object.assign(filterLabel.style, {
-    marginTop: "13px",
+    marginTop: "10px",
     color: "#bcefd3",
     fontSize: "11px",
     fontWeight: "700",
@@ -1212,18 +1442,22 @@ function createButtons() {
     filters.appendChild(button);
   });
 
+  moreTools.append(moreToolsSummary, moreToolsContent);
+
   dock.append(
-    title,
-    rateLabel,
+    header,
+    rateInfo,
     discountLabel,
     discounts,
     customDiscountEditor,
     actions,
     filterLabel,
     filters,
+    moreTools,
   );
   document.body.appendChild(dock);
   updateToolsDock();
+  updateLiveRateControl();
   updateDiscountDock();
   updatePurityFilterDock();
   updateFilterPanelControl();
@@ -1259,10 +1493,22 @@ function sortByPerGram() {
 // 🚀 Init
 //--------------------------------------
 window.addEventListener("load", () => {
-  const saved = localStorage.getItem("myntra_market_rate");
-  if (saved && !isNaN(saved)) {
-    MARKET_RATE = parseFloat(saved);
-    console.log(`📊 Loaded saved market rate: ₹${MARKET_RATE}/g`);
+  const savedRate = parseMarketRate(localStorage.getItem("myntra_market_rate"));
+  const savedSource = localStorage.getItem("myntra_market_rate_source");
+  if (savedRate !== null) {
+    MARKET_RATE = savedRate;
+    MARKET_RATE_SOURCE = savedSource
+      ? normalizeMarketRateSource(savedSource)
+      : "manual";
+  } else {
+    MARKET_RATE_SOURCE = normalizeMarketRateSource(savedSource);
+  }
+
+  if (MARKET_RATE_SOURCE === "manual") {
+    MARKET_RATE_LIVE_STATUS = "manual";
+  } else {
+    applyCachedMalabarRate();
+    refreshMalabarMarketRate();
   }
   const savedDiscount = parseDiscountPercent(
     localStorage.getItem("myntra_blinkdeal_discount_percent"),

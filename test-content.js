@@ -21,6 +21,11 @@ function assertClose(actual, expected, message) {
 }
 
 const source = readFile("content.js");
+assertEqual(
+  source.includes("moreToolsContent.append(filterLabel, filters);"),
+  false,
+  "purity controls remain outside the collapsed More tools section",
+);
 const discountHelperMatch = source.match(
   /function calculateDiscountedPrice\(price, discountPercent = 8\) \{[\s\S]*?\n\}/,
 );
@@ -99,6 +104,15 @@ const loadAllProductsLabelHelperMatch = source.match(
 const goldCoinRouteHelperMatch = source.match(
   /function isGoldCoinPage\(pathname = window\.location\.pathname\) \{[\s\S]*?\n\}/,
 );
+const malabarLiveRateHelperMatch = source.match(
+  /function getMalabarLiveRate\(payload\) \{[\s\S]*?\n\}/,
+);
+const marketRateSourceHelperMatch = source.match(
+  /function normalizeMarketRateSource\(value\) \{[\s\S]*?\n\}/,
+);
+const marketRateStatusHelperMatch = source.match(
+  /function getMarketRateStatus\(source, liveStatus, hasRate\) \{[\s\S]*?\n\}/,
+);
 
 if (
   !discountHelperMatch ||
@@ -126,7 +140,10 @@ if (
   !listingPageUrlHelperMatch ||
   !uniqueProductCardsHelperMatch ||
   !loadAllProductsLabelHelperMatch ||
-  !goldCoinRouteHelperMatch
+  !goldCoinRouteHelperMatch ||
+  !malabarLiveRateHelperMatch ||
+  !marketRateSourceHelperMatch ||
+  !marketRateStatusHelperMatch
 ) {
   throw new Error("required pricing helper is missing");
 }
@@ -157,6 +174,9 @@ eval(listingPageUrlHelperMatch[0]);
 eval(uniqueProductCardsHelperMatch[0]);
 eval(loadAllProductsLabelHelperMatch[0]);
 eval(goldCoinRouteHelperMatch[0]);
+eval(malabarLiveRateHelperMatch[0]);
+eval(marketRateSourceHelperMatch[0]);
+eval(marketRateStatusHelperMatch[0]);
 
 assertEqual(calculatePerGram(16520, null), null, "unknown weight is unavailable");
 assertEqual(calculatePerGram(16520, 0), null, "zero weight is unavailable");
@@ -173,6 +193,43 @@ assertEqual(parseDiscountPercent("100"), null, "100% discount is rejected");
 assertEqual(parseMarketRate("14,850"), 14850, "formatted market rate is accepted");
 assertEqual(parseMarketRate("0"), null, "zero market rate is rejected");
 assertEqual(parseMarketRate("gold"), null, "text market rate is rejected");
+const malabarLiveRate = getMalabarLiveRate({
+  items: [
+    { id: "kalyan", today: 15197.67 },
+    { id: "malabar", today: 15535, updatedAt: "2026-09-03T15:14" },
+  ],
+});
+assertEqual(malabarLiveRate.rate, 15535, "Malabar's current 24K rate is selected");
+assertEqual(
+  malabarLiveRate.updatedAt,
+  "2026-09-03T15:14",
+  "Malabar's update time is retained",
+);
+assertEqual(
+  getMalabarLiveRate({ items: [{ id: "malabar", today: "invalid" }] }),
+  null,
+  "an invalid Malabar rate is rejected",
+);
+assertEqual(
+  normalizeMarketRateSource("manual"),
+  "manual",
+  "a manual rate remains an override",
+);
+assertEqual(
+  normalizeMarketRateSource(null),
+  "malabar",
+  "new users default to the live Malabar rate",
+);
+assertEqual(
+  getMarketRateStatus("malabar", "live", true),
+  "Live Malabar 24K",
+  "the live-rate status is compact and excludes the update time",
+);
+assertEqual(
+  getMarketRateStatus("manual", "manual", true),
+  "Manual rate",
+  "a manual override remains identifiable",
+);
 assertEqual(matchesPurityFilter("24KT", "all"), true, "all filter keeps 24KT");
 assertEqual(matchesPurityFilter("24KT", "24KT"), true, "24KT filter keeps 24KT");
 assertEqual(matchesPurityFilter("22KT", "24KT"), false, "24KT filter hides 22KT");
