@@ -23,6 +23,7 @@ A Chrome extension for comparing Myntra gold-coin listings. It calculates a conf
 | Listing cleanup | Can hide Myntra’s built-in filter panels to fit more products, hides the Izooto floating bell, and excludes PARSHWA PADMAVATI GOLD cards. |
 | Persistent settings | Saves the market rate, Blinkdeal discount, and filter-panel preference in `localStorage`. |
 | MMTC notice | Marks MMTC/MMTC-PAMP products as not applicable for Blinkdeal analysis. |
+| Opt-in cart coupon monitor | From the extension toolbar popup, checks the signed-in Myntra cart every five minutes and reports whether `BLINKDEAL`, `BLINKDEAL6`, `BLINKDEAL8`, or `BLINKDEAL10` is active. It never applies, removes, or changes coupons. |
 
 ## How the comparison works
 
@@ -66,14 +67,27 @@ Products without a reliable stated weight are never assigned an assumed weight o
 4. Optionally choose a purity filter, hide Myntra’s filters, or select **Sort lowest ₹/g**.
 5. On a paginated listing, choose **Load all _N_ products** to bring every page into the current grid before sorting.
 
+### Optional background coupon monitoring
+
+1. Click the extension icon in Chrome and select **Enable monitoring**.
+2. Approve the optional Myntra access request. The extension immediately checks the fixed cart page, then checks it about every five minutes while Chrome is running.
+3. The popup reports only `active`, `no Blinkdeal coupon active`, `another coupon active`, or `cart status unavailable`. It does not show or save cart contents, prices, addresses, customer data, cookies, or coupon values.
+4. Select **Stop monitoring** at any time. Monitoring also stops while Chrome is fully quit; Chrome alarms can be delayed while the device is asleep.
+
+You must be signed in to Myntra in Chrome for a cart check to work. A signed-out session, inaccessible session cookies, or a changed Myntra cart payload is reported as **Cart status unavailable** rather than treated as a coupon result.
+
 ## Project structure
 
 ```text
 myntra-blinkdeal-analyser/
 ├── manifest.json       # Chrome Extension Manifest V3
 ├── background.js       # Retrieves the permitted live Malabar rate
+├── coupon-monitor.js   # Read-only cart extraction and coupon-status classification
 ├── content.js          # Listing, PDP, comparison, and dock behavior
+├── popup.html          # Opt-in cart-monitor popup
+├── popup.js            # Permission request and popup status rendering
 ├── test-content.js     # Lightweight JXA regression tests
+├── test-coupon-monitor.js # Coupon-monitor regression tests
 ├── test-background.js  # Background-worker contract test
 ├── icon128.png         # Extension icon
 ├── README.md

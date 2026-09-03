@@ -14,8 +14,8 @@ Let a signed-in user opt in to a read-only background monitor that reports wheth
 
 ## Privacy and permissions
 
-- Add optional `alarms` and `storage` permissions plus optional host access for `https://www.myntra.com/*`.
-- Request them only after the user clicks **Enable cart monitoring** in the extension popup.
+- Add the required `storage` permission, plus optional `alarms` and optional host access for `https://www.myntra.com/*`.
+- Request the optional permissions only after the user clicks **Enable cart monitoring** in the extension popup. Local storage is required only to retain the user-visible disabled/enabled result; it never grants site access.
 - Do not use the `cookies` API and do not read, store, or display cookie values.
 - Fetch only the fixed cart URL with `credentials: "include"`; no content-script message may supply a URL, headers, coupon code, or request options.
 - Parse the cart response in memory. Persist only `{ enabled, state, activeCode, checkedAt }` in `chrome.storage.local`; never store cart HTML, product data, customer details, addresses, prices, or checkout identifiers.
@@ -24,7 +24,7 @@ Let a signed-in user opt in to a read-only background monitor that reports wheth
 ## Data flow
 
 1. The user opens the extension popup and enables monitoring.
-2. The popup requests the optional permissions inside that user gesture. If granted, it sends a fixed `coupon-monitor:start` message to the service worker.
+2. The popup requests the optional permissions inside that user gesture. If granted, it sends the fixed `blinkdeal:coupon-monitor-enable` message to the service worker.
 3. The service worker creates or recreates a five-minute `blinkdeal-coupon-monitor` alarm and immediately performs one check.
 4. Each check fetches the fixed cart URL with the existing authenticated Myntra session.
 5. The worker extracts the serialized `window._checkout_.__myx_data__` object without evaluating page code, then reads only coupon-related fields and the coupon-discount value.

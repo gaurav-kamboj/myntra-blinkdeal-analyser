@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blinkdeal coupon monitor</title>
+    <style>
+      :root { color-scheme: light; font-family: Arial, sans-serif; }
+      body { width: 320px; margin: 0; color: #263238; background: #f7faf8; }
+      main { padding: 18px; }
+      h1 { margin: 0; color: #064a36; font-size: 18px; }
+      p { margin: 8px 0 14px; color: #52645e; font-size: 13px; line-height: 1.45; }
+      .status { padding: 12px; border: 1px solid #b9e5cf; border-left: 4px solid #ffd35b; border-radius: 10px; background: #effbf4; }
+      .status strong { display: block; color: #075f40; font-size: 14px; }
+      .status span { display: block; margin-top: 5px; color: #66766f; font-size: 12px; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+      button { min-height: 38px; border: 1px solid #0a7853; border-radius: 8px; padding: 8px; color: #07543b; background: #fff; font-weight: 700; cursor: pointer; }
+      button.primary { border-color: #ffd35b; background: #ffd35b; color: #08422f; }
+      button:disabled { cursor: default; opacity: .5; }
+      #check-now { grid-column: 1 / -1; }
+      #notice { min-height: 16px; margin: 10px 0 0; color: #a74f20; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Blinkdeal coupon monitor</h1>
+      <p>Checks your signed-in Myntra cart every 5 minutes. It never applies or changes coupons.</p>
+      <div class="status" aria-live="polite">
+        <strong id="status-title">Cart monitoring is off</strong>
+        <span id="status-detail">Enable it to check Blinkdeal coupon status.</span>
+      </div>
+      <div class="actions">
+        <button class="primary" id="enable" type="button">Enable monitoring</button>
+        <button id="stop" type="button" disabled>Stop monitoring</button>
+        <button id="check-now" type="button" disabled>Check now</button>
+      </div>
+      <div id="notice" role="status"></div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
