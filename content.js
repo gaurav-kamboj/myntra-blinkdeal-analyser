@@ -728,6 +728,76 @@ function getMarketRateStatus(source, liveStatus, hasRate) {
   return hasRate ? "Live Malabar 24K" : "Live rate pending";
 }
 
+function getCouponMonitorBanner(status) {
+  if (status?.enabled && status.state === "active" && status.activeCode) {
+    return {
+      label: `Blinkdeal active — ${status.activeCode}`,
+      tone: "active",
+    };
+  }
+  if (status?.enabled && (status.state === "inactive" || status.state === "other-coupon")) {
+    return { label: "Blinkdeal not active", tone: "inactive" };
+  }
+  if (status?.enabled && status.state === "unavailable") {
+    return { label: "Blinkdeal status unavailable", tone: "inactive" };
+  }
+  return { label: "Cart monitoring is off", tone: "inactive" };
+}
+
+function updateCouponMonitorBanner(status) {
+  let banner = document.querySelector("#blinkdeal-coupon-monitor-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "blinkdeal-coupon-monitor-banner";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
+    Object.assign(banner.style, {
+      position: "sticky",
+      top: "0",
+      zIndex: "2147483647",
+      boxSizing: "border-box",
+      width: "100%",
+      minHeight: "28px",
+      padding: "6px 16px",
+      textAlign: "center",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "12px",
+      fontWeight: "700",
+      lineHeight: "16px",
+      letterSpacing: "0.1px",
+    });
+    document.body.prepend(banner);
+  }
+
+  const display = getCouponMonitorBanner(status);
+  banner.textContent = display.label;
+  banner.style.background = display.tone === "active" ? "#0b7a51" : "#e8ecea";
+  banner.style.color = display.tone === "active" ? "#ffffff" : "#52605b";
+}
+
+function requestCouponMonitorStatus() {
+  if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
+
+  chrome.runtime.sendMessage({ type: "blinkdeal:coupon-monitor-status" }, (response) => {
+    if (chrome.runtime.lastError || !response?.ok) {
+      updateCouponMonitorBanner(null);
+      return;
+    }
+    updateCouponMonitorBanner(response.status);
+  });
+}
+
+function initializeCouponMonitorBanner() {
+  updateCouponMonitorBanner(null);
+  requestCouponMonitorStatus();
+  if (typeof chrome === "undefined" || !chrome.storage?.onChanged) return;
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !changes.blinkdealCouponMonitor) return;
+    updateCouponMonitorBanner(changes.blinkdealCouponMonitor.newValue);
+  });
+}
+
 function requestMalabarMarketRate() {
   return new Promise((resolve, reject) => {
     if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
@@ -1493,6 +1563,7 @@ function sortByPerGram() {
 // 🚀 Init
 //--------------------------------------
 window.addEventListener("load", () => {
+  initializeCouponMonitorBanner();
   const savedRate = parseMarketRate(localStorage.getItem("myntra_market_rate"));
   const savedSource = localStorage.getItem("myntra_market_rate_source");
   if (savedRate !== null) {

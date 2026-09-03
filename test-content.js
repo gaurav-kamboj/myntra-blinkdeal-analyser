@@ -20,6 +20,10 @@ function assertClose(actual, expected, message) {
   }
 }
 
+function assertDeepEqual(actual, expected, message) {
+  assertEqual(JSON.stringify(actual), JSON.stringify(expected), message);
+}
+
 const source = readFile("content.js");
 assertEqual(
   source.includes("moreToolsContent.append(filterLabel, filters);"),
@@ -113,6 +117,9 @@ const marketRateSourceHelperMatch = source.match(
 const marketRateStatusHelperMatch = source.match(
   /function getMarketRateStatus\(source, liveStatus, hasRate\) \{[\s\S]*?\n\}/,
 );
+const couponMonitorBannerHelperMatch = source.match(
+  /function getCouponMonitorBanner\(status\) \{[\s\S]*?\n\}/,
+);
 
 if (
   !discountHelperMatch ||
@@ -143,7 +150,8 @@ if (
   !goldCoinRouteHelperMatch ||
   !malabarLiveRateHelperMatch ||
   !marketRateSourceHelperMatch ||
-  !marketRateStatusHelperMatch
+  !marketRateStatusHelperMatch ||
+  !couponMonitorBannerHelperMatch
 ) {
   throw new Error("required pricing helper is missing");
 }
@@ -177,6 +185,7 @@ eval(goldCoinRouteHelperMatch[0]);
 eval(malabarLiveRateHelperMatch[0]);
 eval(marketRateSourceHelperMatch[0]);
 eval(marketRateStatusHelperMatch[0]);
+eval(couponMonitorBannerHelperMatch[0]);
 
 assertEqual(calculatePerGram(16520, null), null, "unknown weight is unavailable");
 assertEqual(calculatePerGram(16520, 0), null, "zero weight is unavailable");
@@ -229,6 +238,21 @@ assertEqual(
   getMarketRateStatus("manual", "manual", true),
   "Manual rate",
   "a manual override remains identifiable",
+);
+assertDeepEqual(
+  getCouponMonitorBanner({ enabled: true, state: "active", activeCode: "BLINKDEAL8" }),
+  { label: "Blinkdeal active — BLINKDEAL8", tone: "active" },
+  "an active Blinkdeal coupon is shown in green",
+);
+assertDeepEqual(
+  getCouponMonitorBanner({ enabled: true, state: "inactive", activeCode: null }),
+  { label: "Blinkdeal not active", tone: "inactive" },
+  "an inactive Blinkdeal coupon has the compact grey label",
+);
+assertDeepEqual(
+  getCouponMonitorBanner({ enabled: false, state: "disabled", activeCode: null }),
+  { label: "Cart monitoring is off", tone: "inactive" },
+  "a disabled monitor remains visually distinct from an active coupon",
 );
 assertEqual(matchesPurityFilter("24KT", "all"), true, "all filter keeps 24KT");
 assertEqual(matchesPurityFilter("24KT", "24KT"), true, "24KT filter keeps 24KT");
