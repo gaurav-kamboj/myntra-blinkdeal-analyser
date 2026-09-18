@@ -120,6 +120,18 @@ const marketRateStatusHelperMatch = source.match(
 const couponMonitorBannerHelperMatch = source.match(
   /function getCouponMonitorBanner\(status\) \{[\s\S]*?\n\}/,
 );
+const orderTrackingPageHelperMatch = source.match(
+  /function isOrderTrackingPage\(pathname = window\.location\.pathname\) \{[\s\S]*?\n\}/,
+);
+const orderDetailIdentifiersHelperMatch = source.match(
+  /function getOrderDetailIdentifiers\(search = window\.location\.search\) \{[\s\S]*?\n\}/,
+);
+const packetResourceIdHelperMatch = source.match(
+  /function getPacketIdFromResourceUrl\(resourceUrl\) \{[\s\S]*?\n\}/,
+);
+const packetTrackingHelperMatch = source.match(
+  /function getTrackingFromPacket\(payload, identifiers\) \{[\s\S]*?\n\}/,
+);
 
 if (
   !discountHelperMatch ||
@@ -151,7 +163,11 @@ if (
   !malabarLiveRateHelperMatch ||
   !marketRateSourceHelperMatch ||
   !marketRateStatusHelperMatch ||
-  !couponMonitorBannerHelperMatch
+  !couponMonitorBannerHelperMatch ||
+  !orderTrackingPageHelperMatch ||
+  !orderDetailIdentifiersHelperMatch ||
+  !packetResourceIdHelperMatch ||
+  !packetTrackingHelperMatch
 ) {
   throw new Error("required pricing helper is missing");
 }
@@ -186,6 +202,10 @@ eval(malabarLiveRateHelperMatch[0]);
 eval(marketRateSourceHelperMatch[0]);
 eval(marketRateStatusHelperMatch[0]);
 eval(couponMonitorBannerHelperMatch[0]);
+eval(orderTrackingPageHelperMatch[0]);
+eval(orderDetailIdentifiersHelperMatch[0]);
+eval(packetResourceIdHelperMatch[0]);
+eval(packetTrackingHelperMatch[0]);
 
 assertEqual(calculatePerGram(16520, null), null, "unknown weight is unavailable");
 assertEqual(calculatePerGram(16520, 0), null, "zero weight is unavailable");
@@ -253,6 +273,57 @@ assertDeepEqual(
   getCouponMonitorBanner({ enabled: false, state: "disabled", activeCode: null }),
   { label: "Cart monitoring is off", tone: "inactive" },
   "a disabled monitor remains visually distinct from an active coupon",
+);
+assertEqual(
+  isOrderTrackingPage("/my/orders"),
+  true,
+  "the orders page suppresses Gold Deal Tools",
+);
+assertEqual(
+  isOrderTrackingPage("/my/item/details"),
+  true,
+  "an order-item details page can show order tracking",
+);
+assertEqual(
+  isOrderTrackingPage("/gold-coin"),
+  false,
+  "gold listings retain Gold Deal Tools",
+);
+assertDeepEqual(
+  getOrderDetailIdentifiers("?storeOrderId=order-42&itemId=item-7&storeLineId=line-9"),
+  { storeOrderId: "order-42", itemId: "item-7" },
+  "order tracking uses the order and item IDs rather than the store line ID",
+);
+assertEqual(
+  getPacketIdFromResourceUrl("https://www.myntra.com/gateway/v2/user/packet/1000157438793"),
+  "1000157438793",
+  "a packet request reveals the packet ID needed for the authenticated lookup",
+);
+assertDeepEqual(
+  getTrackingFromPacket(
+    {
+      packet: {
+        items: [
+          {
+            storeOrderId: "order-42",
+            id: "item-7",
+            tracking: { number: "tracking-99", courier: { name: "Bluedart" } },
+          },
+        ],
+      },
+    },
+    { storeOrderId: "order-42", itemId: "item-7" },
+  ),
+  { courier: "Bluedart", number: "tracking-99" },
+  "the matching packet item exposes only courier and tracking number",
+);
+assertEqual(
+  getTrackingFromPacket(
+    { packet: { items: [{ storeOrderId: "order-42", id: "other-item" }] } },
+    { storeOrderId: "order-42", itemId: "item-7" },
+  ),
+  null,
+  "a packet item for a different item is never displayed",
 );
 assertEqual(matchesPurityFilter("24KT", "all"), true, "all filter keeps 24KT");
 assertEqual(matchesPurityFilter("24KT", "24KT"), true, "24KT filter keeps 24KT");

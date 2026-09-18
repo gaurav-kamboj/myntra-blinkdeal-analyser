@@ -143,6 +143,136 @@ function isGoldCoinPage(pathname = window.location.pathname) {
   return normalizedPath.includes("gold") && normalizedPath.includes("coin");
 }
 
+function isOrderTrackingPage(pathname = window.location.pathname) {
+  return /^\/my\/(?:orders|item\/details)\/?$/.test(String(pathname));
+}
+
+function isOrderItemDetailsPage(pathname = window.location.pathname) {
+  return /^\/my\/item\/details\/?$/.test(String(pathname));
+}
+
+function getOrderDetailIdentifiers(search = window.location.search) {
+  const parameters = {};
+  String(search)
+    .replace(/^\?/, "")
+    .split("&")
+    .forEach((segment) => {
+      const [key, value] = segment.split("=", 2);
+      if (key && value) parameters[decodeURIComponent(key)] = decodeURIComponent(value);
+    });
+
+  const storeOrderId = parameters.storeOrderId;
+  const itemId = parameters.itemId;
+  return storeOrderId && itemId ? { storeOrderId, itemId } : null;
+}
+
+function getPacketIdFromResourceUrl(resourceUrl) {
+  const match = String(resourceUrl).match(/\/gateway\/v2\/user\/packet\/(\d+)(?:[/?#]|$)/);
+  return match ? match[1] : null;
+}
+
+function getTrackingFromPacket(payload, identifiers) {
+  if (!identifiers || !Array.isArray(payload?.packet?.items)) return null;
+
+  const item = payload.packet.items.find(
+    (candidate) =>
+      String(candidate?.storeOrderId) === identifiers.storeOrderId &&
+      String(candidate?.id) === identifiers.itemId,
+  );
+  const number = String(item?.tracking?.number || "").trim();
+  const courier = String(item?.tracking?.courier?.name || "").trim();
+  return number && courier ? { courier, number } : null;
+}
+
+function getCurrentPacketId() {
+  if (!window.performance?.getEntriesByType) return null;
+  return window.performance
+    .getEntriesByType("resource")
+    .map((entry) => getPacketIdFromResourceUrl(entry.name))
+    .find(Boolean) || null;
+}
+
+function renderOrderTrackingCard(tracking) {
+  if (!tracking || document.querySelector("#blinkdeal-order-tracking")) return;
+
+  const card = document.createElement("aside");
+  card.id = "blinkdeal-order-tracking";
+  card.setAttribute("aria-label", "Shipment tracking");
+  Object.assign(card.style, {
+    position: "fixed",
+    right: "24px",
+    bottom: "24px",
+    boxSizing: "border-box",
+    width: "230px",
+    padding: "14px",
+    background: "#ffffff",
+    color: "#173d2b",
+    border: "1px solid #bde9d0",
+    borderRadius: "12px",
+    boxShadow: "0 10px 24px rgba(10, 54, 36, 0.2)",
+    fontFamily: "Arial, sans-serif",
+    zIndex: "10000",
+  });
+
+  const title = document.createElement("div");
+  title.textContent = "Shipment tracking";
+  Object.assign(title.style, { fontSize: "14px", fontWeight: "700" });
+
+  const courier = document.createElement("div");
+  courier.textContent = `Courier: ${tracking.courier}`;
+  Object.assign(courier.style, {
+    marginTop: "9px",
+    color: "#426354",
+    fontSize: "12px",
+    lineHeight: "16px",
+  });
+
+  const number = document.createElement("div");
+  number.textContent = `Tracking: ${tracking.number}`;
+  Object.assign(number.style, {
+    marginTop: "4px",
+    color: "#075f40",
+    fontSize: "13px",
+    fontWeight: "700",
+    lineHeight: "18px",
+  });
+
+  card.append(title, courier, number);
+  document.body.appendChild(card);
+}
+
+async function loadOrderTracking() {
+  const identifiers = getOrderDetailIdentifiers();
+  const packetId = getCurrentPacketId();
+  if (!identifiers || !packetId) return false;
+
+  try {
+    const response = await fetch(`/gateway/v2/user/packet/${encodeURIComponent(packetId)}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!response.ok) return true;
+
+    renderOrderTrackingCard(getTrackingFromPacket(await response.json(), identifiers));
+  } catch {
+    // The order page remains unchanged when its authenticated packet cannot be read.
+  }
+  return true;
+}
+
+function initializeOrderTracking() {
+  if (!isOrderItemDetailsPage() || window.blinkdealOrderTrackingInitialized) return;
+
+  window.blinkdealOrderTrackingInitialized = true;
+  let attempts = 0;
+  const tryLoad = async () => {
+    const packetFound = await loadOrderTracking();
+    attempts += 1;
+    if (!packetFound && attempts < 12) setTimeout(tryLoad, 1000);
+  };
+  tryLoad();
+}
+
 function getTotalListingPages(text) {
   const match = String(text).match(/page\s+\d+\s+of\s+(\d+)/i);
   return match ? parseInt(match[1], 10) : null;
@@ -647,9 +777,16 @@ async function loadAllListingProducts() {
 // 🔁 Continuous refresh
 //--------------------------------------
 function refreshData() {
-  if (isProductDetailPage()) {
+  if (isOrderTrackingPage()) {
+    document.querySelector("#blinkdeal-tools")?.remove();
+    initializeOrderTracking();
+  } else if (isProductDetailPage()) {
+    document.querySelector("#blinkdeal-order-tracking")?.remove();
+    delete window.blinkdealOrderTrackingInitialized;
     updatePdpDealCard();
   } else {
+    document.querySelector("#blinkdeal-order-tracking")?.remove();
+    delete window.blinkdealOrderTrackingInitialized;
     applyFilterPanelVisibility();
     injectDiscountLabels();
   }
@@ -1196,6 +1333,10 @@ function updateDiscountDock() {
 }
 
 function createButtons() {
+  if (isOrderTrackingPage()) {
+    document.querySelector("#blinkdeal-tools")?.remove();
+    return;
+  }
   if (document.querySelector("#blinkdeal-tools")) {
     updateToolsDock();
     updateLiveRateControl();

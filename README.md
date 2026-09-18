@@ -24,6 +24,7 @@ A Chrome extension for comparing Myntra gold-coin listings. It calculates a conf
 | Persistent settings | Saves the market rate, Blinkdeal discount, and filter-panel preference in `localStorage`. |
 | MMTC notice | Marks MMTC/MMTC-PAMP products as not applicable for Blinkdeal analysis. |
 | Opt-in cart coupon monitor | From the extension toolbar popup, checks the signed-in Myntra cart every five minutes and reports whether `BLINKDEAL`, `BLINKDEAL6`, `BLINKDEAL8`, or `BLINKDEAL10` is active. It never applies, removes, or changes coupons. |
+| Order tracking card | On a Myntra order-item details page, displays the courier and tracking number returned for the matching signed-in order item. It does not store order or tracking data, and Gold Deal Tools stays hidden on `/my/orders` and `/my/item/details`. |
 
 ## How the comparison works
 
