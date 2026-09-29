@@ -126,11 +126,26 @@ const orderTrackingPageHelperMatch = source.match(
 const orderDetailIdentifiersHelperMatch = source.match(
   /function getOrderDetailIdentifiers\(search = window\.location\.search\) \{[\s\S]*?\n\}/,
 );
-const packetResourceIdHelperMatch = source.match(
-  /function getPacketIdFromResourceUrl\(resourceUrl\) \{[\s\S]*?\n\}/,
+const orderDetailUrlIdentifiersHelperMatch = source.match(
+  /function getOrderDetailIdentifiersFromUrl\(url\) \{[\s\S]*?\n\}/,
 );
-const packetTrackingHelperMatch = source.match(
-  /function getTrackingFromPacket\(payload, identifiers\) \{[\s\S]*?\n\}/,
+const pendingDeliveryHelperMatch = source.match(
+  /function isPendingDeliveryItem\(item\) \{[\s\S]*?\n\}/,
+);
+const orderTrackingHelperMatch = source.match(
+  /function getTrackingFromOrder\(payload, identifiers\) \{[\s\S]*?\n\}/,
+);
+const orderTrackingRequestBodyHelperMatch = source.match(
+  /function getOrderTrackingRequestBody\(storeOrderId\) \{[\s\S]*?\n\}/,
+);
+const bluedartTrackingUrlHelperMatch = source.match(
+  /function getBluedartTrackingUrl\(trackingNumber\) \{[\s\S]*?\n\}/,
+);
+const trackingLinkLabelHelperMatch = source.match(
+  /function getTrackingLinkLabel\(tracking\) \{[\s\S]*?\n\}/,
+);
+const trackingNumberLabelHelperMatch = source.match(
+  /function getTrackingNumberLabel\(tracking\) \{[\s\S]*?\n\}/,
 );
 
 if (
@@ -166,8 +181,13 @@ if (
   !couponMonitorBannerHelperMatch ||
   !orderTrackingPageHelperMatch ||
   !orderDetailIdentifiersHelperMatch ||
-  !packetResourceIdHelperMatch ||
-  !packetTrackingHelperMatch
+  !orderDetailUrlIdentifiersHelperMatch ||
+  !pendingDeliveryHelperMatch ||
+  !orderTrackingHelperMatch ||
+  !orderTrackingRequestBodyHelperMatch ||
+  !bluedartTrackingUrlHelperMatch ||
+  !trackingLinkLabelHelperMatch ||
+  !trackingNumberLabelHelperMatch
 ) {
   throw new Error("required pricing helper is missing");
 }
@@ -204,8 +224,13 @@ eval(marketRateStatusHelperMatch[0]);
 eval(couponMonitorBannerHelperMatch[0]);
 eval(orderTrackingPageHelperMatch[0]);
 eval(orderDetailIdentifiersHelperMatch[0]);
-eval(packetResourceIdHelperMatch[0]);
-eval(packetTrackingHelperMatch[0]);
+eval(orderDetailUrlIdentifiersHelperMatch[0]);
+eval(pendingDeliveryHelperMatch[0]);
+eval(orderTrackingHelperMatch[0]);
+eval(orderTrackingRequestBodyHelperMatch[0]);
+eval(bluedartTrackingUrlHelperMatch[0]);
+eval(trackingLinkLabelHelperMatch[0]);
+eval(trackingNumberLabelHelperMatch[0]);
 
 assertEqual(calculatePerGram(16520, null), null, "unknown weight is unavailable");
 assertEqual(calculatePerGram(16520, 0), null, "zero weight is unavailable");
@@ -294,18 +319,58 @@ assertDeepEqual(
   { storeOrderId: "order-42", itemId: "item-7" },
   "order tracking uses the order and item IDs rather than the store line ID",
 );
+assertDeepEqual(
+  getOrderDetailIdentifiersFromUrl("/my/item/details?storeOrderId=order-42&itemId=item-7&storeLineId=line-9"),
+  { storeOrderId: "order-42", itemId: "item-7" },
+  "an order-list detail link identifies the matching order item",
+);
 assertEqual(
-  getPacketIdFromResourceUrl("https://www.myntra.com/gateway/v2/user/packet/1000157438793"),
-  "1000157438793",
-  "a packet request reveals the packet ID needed for the authenticated lookup",
+  isPendingDeliveryItem({ status: { name: "Shipped" } }),
+  true,
+  "a shipped item is included in order-list tracking",
+);
+assertEqual(
+  isPendingDeliveryItem({ status: { name: "Delivered" } }),
+  false,
+  "a delivered item is excluded from order-list tracking",
 );
 assertDeepEqual(
-  getTrackingFromPacket(
+  getOrderTrackingRequestBody("order-42"),
+  {
+    storeOrderId: "order-42",
+    getStyle: "true",
+    getPayments: "true",
+    getTracking: "true",
+    getGiftCard: "false",
+    getCart: "true",
+    getCartV2: "true",
+    getUsp: true,
+    getReturn: "true",
+  },
+  "the direct order request explicitly requests tracking data",
+);
+assertEqual(
+  getBluedartTrackingUrl("tracking 99/100"),
+  "https://bluedart.com/?tracking%2099%2F100",
+  "a tracking number is safely added to the Bluedart URL",
+);
+assertEqual(
+  getTrackingLinkLabel({ courier: "Bluedart (FWD courier)", number: "tracking-99" }),
+  "Bluedart · tracking-99 ↗",
+  "a visible tracking label includes the concise courier and tracking number",
+);
+assertEqual(
+  getTrackingNumberLabel({ number: "tracking-99" }),
+  "Tracking: tracking-99 ↗",
+  "a detail-page tracking label avoids repeating the courier name",
+);
+assertDeepEqual(
+  getTrackingFromOrder(
     {
-      packet: {
+      order: {
+        storeOrderId: "order-42",
         items: [
           {
-            storeOrderId: "order-42",
             id: "item-7",
             tracking: { number: "tracking-99", courier: { name: "Bluedart" } },
           },
@@ -315,15 +380,15 @@ assertDeepEqual(
     { storeOrderId: "order-42", itemId: "item-7" },
   ),
   { courier: "Bluedart", number: "tracking-99" },
-  "the matching packet item exposes only courier and tracking number",
+  "the matching order item exposes only courier and tracking number",
 );
 assertEqual(
-  getTrackingFromPacket(
-    { packet: { items: [{ storeOrderId: "order-42", id: "other-item" }] } },
+  getTrackingFromOrder(
+    { order: { storeOrderId: "order-42", items: [{ id: "other-item" }] } },
     { storeOrderId: "order-42", itemId: "item-7" },
   ),
   null,
-  "a packet item for a different item is never displayed",
+  "an order item for a different item is never displayed",
 );
 assertEqual(matchesPurityFilter("24KT", "all"), true, "all filter keeps 24KT");
 assertEqual(matchesPurityFilter("24KT", "24KT"), true, "24KT filter keeps 24KT");
